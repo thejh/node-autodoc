@@ -204,6 +204,7 @@ function ast_walker() {
 
         var user = {};
         var stack = [];
+        var keepProps = ['line', 'col', 'scope'];
         function walk(ast) {
                 if (ast == null)
                         return null;
@@ -213,11 +214,16 @@ function ast_walker() {
                         var gen = user[type];
                         if (gen) {
                                 var ret = gen.apply(ast, ast.slice(1));
-                                if (ret != null)
-                                        return ret;
                         }
-                        gen = walkers[type];
-                        return gen.apply(ast, ast.slice(1));
+                        if (ret == null) {
+                                gen = walkers[type];
+                                ret = gen.apply(ast, ast.slice(1));
+                        }
+                        keepProps.forEach(function(prop) {
+                                if (ast.hasOwnProperty(prop))
+                                        ret[prop] = ast[prop];
+                        })
+                        return ret
                 } finally {
                         stack.pop();
                 }
@@ -385,6 +391,7 @@ function ast_add_scope(ast) {
                 current_scope = new Scope(current_scope);
                 var ret = current_scope.body = cont();
                 ret.scope = current_scope;
+                current_scope.ast = ret;
                 current_scope = current_scope.parent;
                 return ret;
         };

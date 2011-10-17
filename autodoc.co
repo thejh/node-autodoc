@@ -1,0 +1,33 @@
+jsp = require \./bundled/uglify-js .parser
+{MAP} = processer = require \./bundled/uglify-js .uglify
+
+analyzeFile = (code) ->
+  ast = jsp.parse code
+  ast = processer.ast_add_scope ast
+
+getCallProps = (scope, name) ->
+  callParameters = []
+  {walk, with_walkers} = w = do processer.ast_walker
+  walkers =
+    call: (expr, args) ->
+      if expr[0] is \name and expr[1] is name
+        callParameters.push args
+      [ @0, (w.walk expr), (MAP args, walk) ]
+  with_walkers walkers, ->
+    walk scope.ast
+  callParameters
+
+
+testFile = """
+function foo(name, cb) {
+  request("user", "delete", function(err, data) {
+    if (err) {
+      cb(err, false);
+    } else {
+      cb(null, data);
+    }
+  })
+}
+"""
+
+console.log getCallProps (analyzeFile testFile).scope, \cb
