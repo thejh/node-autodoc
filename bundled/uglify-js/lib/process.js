@@ -406,11 +406,14 @@ function ast_add_scope(ast) {
 
         function _lambda(name, args, body) {
                 var is_defun = this[0] == "defun";
-                return [ this[0], is_defun ? define(name, "defun") : name, args, with_new_scope(function(){
+                body = with_new_scope(function(){
                         if (!is_defun) define(name, "lambda");
                         MAP(args, function(name){ define(name, "arg") });
                         return MAP(body, walk);
-                })];
+                });
+                var result = [ this[0], is_defun ? define(name, "defun") : name, args, body];
+                result[3].scope.ast = result;
+                return result;
         };
 
         function _vardefs(type) {

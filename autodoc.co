@@ -1,9 +1,9 @@
 jsp = require \./bundled/uglify-js .parser
-{MAP} = processer = require \./bundled/uglify-js .uglify
+{MAP, gen_code} = processer = require \./bundled/uglify-js .uglify
 
-analyzeFile = (code) ->
+getAst = (code) ->
   ast = jsp.parse code
-  ast = processer.ast_add_scope ast
+  processer.ast_add_scope ast
 
 getCallProps = (scope, name) ->
   callParameters = []
@@ -14,20 +14,87 @@ getCallProps = (scope, name) ->
         callParameters.push args
       [ @0, (w.walk expr), (MAP args, walk) ]
   with_walkers walkers, ->
+    if not scope.ast?
+      throw new Error "why u hide my ast?"
     walk scope.ast
   callParameters
 
+getRootlevelAssignments = (ast) ->
+  vars = module: type: \object, properties: exports: type: \object, properties: {}
+  vars.exports = vars.module.properties.exports
+  if ast.0 is not \toplevel
+    throw new Error "WHY U NO GIVE ME TOPLEVEL NODE? *SAD*"
+  describeFunction = (node) ->
+    scope = getScope node
+    if not scope?
+      throw new Error "why u hide my scope?"
+    type: \function
+    properties: {}
+    #node: node
+    args: node.2.map (argname) ->
+      result = name: argname
+      invocations = getCallProps scope, argname
+      if invocations.length > 0
+        result.type = \callback
+        result.invocations = invocations.map (nodes) ->
+          for node of nodes
+            gen_code node
+      result
+  # now defun statements (hoisting)
+  for node of ast.1
+    continue unless node.0 is \defun
+    console.log "rootlevel defun: #{node.1}"
+    vars[node.1] = describeFunction node
+  # assignments
+  handleAssign = (target, source) ->
+    console.log "handling assign #{source.0}->#{target.0}"
+    # get target object
+    if target.0 is \name
+      (vars[target.1] = properties: {}) unless vars[target.1]?
+      targetObj = vars
+      targetPropName = target.1
+    else if target.0 is \dot and target.1.0 is \name
+      targetObj = properties: vars
+      for prop of [target.1.1].concat target.slice 2, target.length-1
+        if not targetObj.properties[prop]?
+          targetObj.properties[prop] = properties: {}
+        targetObj = targetObj.properties[prop]
+      targetObj = targetObj.properties
+      targetPropName = target[target.length-1]
+    else
+      return
+    # assign source to it
+    if source.0 is \function
+      targetObj[targetPropName] = describeFunction source
+    else if source.0 is \name
+      targetObj[targetPropName] = vars[source.1]
+    else if source.0 is \dot and source.1.0 is \name
+      sourceObj = vars[source.1.1]
+      for prop of source.slice 2
+        sourceObj = sourceObj.properties[prop]
+      targetObj[targetPropName] = sourceObj
+    return
+  for node of ast.1
+    if node.0 is \stat
+      node = node.1
+    console.log "node with type #{node.0} hit"
+    switch node.0
+    case \assign
+      handleAssign node.2, node.3
+    case \var \const
+      for [name, value] of node.1
+        continue unless value?
+        handleAssign [\name, name], value
+  vars
 
-testFile = """
-function foo(name, cb) {
-  request("user", "delete", function(err, data) {
-    if (err) {
-      cb(err, false);
-    } else {
-      cb(null, data);
-    }
-  })
-}
-"""
+getScope = (node) ->
+  if not (node.0 of <[ defun function ]>)
+    throw new Error "get the scope of a #{node.0}? dunno how to do that."
+  node.3.scope
 
-console.log getCallProps (analyzeFile testFile).scope, \cb
+testFile = require(\fs).readFileSync 'node_modules/cradle/lib/cradle.js', \utf8
+
+ast = getAst testFile
+getRootlevelAssignments ast
+console.log getCallProps ast.scope, \cb
+console.log "OBJECT DUMP: #{JSON.stringify getRootlevelAssignments(ast).module.properties.exports}"
