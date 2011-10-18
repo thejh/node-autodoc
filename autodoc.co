@@ -107,7 +107,7 @@ getScope = (node) ->
     throw new Error "get the scope of a #{node.0}? dunno how to do that."
   node.3.scope or node.scope
 
-testFile = require(\fs).readFileSync 'node_modules/cradle/lib/cradle.js', \utf8
+testFile = require(\fs).readFileSync process.argv.2, \utf8
 
 ast = getAst testFile
 getRootlevelAssignments ast
