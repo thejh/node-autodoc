@@ -3,7 +3,19 @@ jsp = require \./bundled/uglify-js .parser
 
 getAst = (code) ->
   ast = jsp.parse code
-  processer.ast_add_scope ast
+  ast = processer.ast_add_scope ast
+  redottify ast
+
+redottify = (ast) ->
+  {walk, with_walkers} = w = do processer.ast_walker
+  walkers =
+    dot: (expr, ...args) ->
+      while expr.0 is \dot
+        args = expr.slice(2).concat args
+        expr = expr.1
+      [\dot, expr].concat args
+  with_walkers walkers, ->
+    walk ast
 
 getCallProps = (scope, name) ->
   callParameters = []
@@ -47,7 +59,7 @@ getRootlevelAssignments = (ast) ->
     vars[node.1] = describeFunction node
   # assignments
   handleAssign = (target, source) ->
-    console.log "handling assign #{source.0}->#{target.0}"
+    console.log "handling assign #{source.0} -> #{JSON.stringify target}"
     # get target object
     if target.0 is \name
       (vars[target.1] = properties: {}) unless vars[target.1]?
@@ -62,6 +74,7 @@ getRootlevelAssignments = (ast) ->
       targetObj = targetObj.properties
       targetPropName = target[target.length-1]
     else
+      console.log "  invalid target"
       return
     # assign source to it
     if source.0 is \function
@@ -73,6 +86,8 @@ getRootlevelAssignments = (ast) ->
       for prop of source.slice 2
         sourceObj = sourceObj.properties[prop]
       targetObj[targetPropName] = sourceObj
+    else
+      console.log "  invalid source"
     return
   for node of ast.1
     if node.0 is \stat
@@ -90,7 +105,7 @@ getRootlevelAssignments = (ast) ->
 getScope = (node) ->
   if not (node.0 of <[ defun function ]>)
     throw new Error "get the scope of a #{node.0}? dunno how to do that."
-  node.3.scope
+  node.3.scope or node.scope
 
 testFile = require(\fs).readFileSync 'node_modules/cradle/lib/cradle.js', \utf8
 

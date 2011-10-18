@@ -412,7 +412,8 @@ function ast_add_scope(ast) {
                         return MAP(body, walk);
                 });
                 var result = [ this[0], is_defun ? define(name, "defun") : name, args, body];
-                result[3].scope.ast = result;
+                result.scope = result[3].scope;
+                result.scope.ast = result;
                 return result;
         };
 
