@@ -55,11 +55,9 @@ getRootlevelAssignments = (ast) ->
   # now defun statements (hoisting)
   for node of ast.1
     continue unless node.0 is \defun
-    console.log "rootlevel defun: #{node.1}"
     vars[node.1] = describeFunction node
   # assignments
   handleAssign = (target, source) ->
-    console.log "handling assign #{source.0} -> #{JSON.stringify target}"
     # get target object
     if target.0 is \name
       (vars[target.1] = properties: {}) unless vars[target.1]?
@@ -74,7 +72,6 @@ getRootlevelAssignments = (ast) ->
       targetObj = targetObj.properties
       targetPropName = target[target.length-1]
     else
-      console.log "  invalid target"
       return
     # assign source to it
     if source.0 is \function
@@ -86,13 +83,10 @@ getRootlevelAssignments = (ast) ->
       for prop of source.slice 2
         sourceObj = sourceObj.properties[prop]
       targetObj[targetPropName] = sourceObj
-    else
-      console.log "  invalid source"
     return
   for node of ast.1
     if node.0 is \stat
       node = node.1
-    console.log "node with type #{node.0} hit"
     switch node.0
     case \assign
       handleAssign node.2, node.3
@@ -111,5 +105,4 @@ testFile = require(\fs).readFileSync process.argv.2, \utf8
 
 ast = getAst testFile
 getRootlevelAssignments ast
-console.log getCallProps ast.scope, \cb
-console.log "OBJECT DUMP: #{JSON.stringify getRootlevelAssignments(ast).module.properties.exports}"
+console.log JSON.stringify getRootlevelAssignments(ast).module.properties.exports
